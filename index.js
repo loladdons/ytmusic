@@ -217,17 +217,48 @@ function textOf(runs) {
   return '';
 }
 
+function fixUrl(u) {
+  if (!u) return null;
+  u = String(u).trim();
+  if (!u) return null;
+  if (u.indexOf('//') === 0) u = 'https:' + u;
+  // Preferir tamaño grande para banners / posters
+  u = u.replace(/=w\d+-h\d+/, '=w720-h720').replace(/\?.*$/, function (q) {
+    return q;
+  });
+  try {
+    if (u.indexOf('googleusercontent') >= 0 || u.indexOf('ytimg') >= 0) {
+      u = u.replace(/=s\d+/, '=s720').replace(/=w\d+/, '=w720');
+    }
+  } catch (e) {}
+  return u;
+}
+
 function thumbOf(obj) {
   var thumbs =
     (obj && obj.thumbnail && obj.thumbnail.thumbnails) ||
-    (obj && obj.thumbnailRenderer && obj.thumbnailRenderer.musicThumbnailRenderer &&
+    (obj &&
+      obj.thumbnailRenderer &&
+      obj.thumbnailRenderer.musicThumbnailRenderer &&
       obj.thumbnailRenderer.musicThumbnailRenderer.thumbnail &&
       obj.thumbnailRenderer.musicThumbnailRenderer.thumbnail.thumbnails) ||
     (obj && obj.thumbnails) ||
     [];
+  if (!Array.isArray(thumbs) || !thumbs.length) {
+    // a veces viene en musicThumbnailRenderer directo
+    var alt =
+      obj &&
+      obj.thumbnailRenderer &&
+      obj.thumbnailRenderer.musicThumbnailRenderer &&
+      obj.thumbnailRenderer.musicThumbnailRenderer.thumbnail;
+    if (alt && alt.thumbnails) thumbs = alt.thumbnails;
+  }
   if (!Array.isArray(thumbs) || !thumbs.length) return null;
-  var best = thumbs[thumbs.length - 1];
-  return best && best.url ? best.url : null;
+  var best = thumbs[0];
+  for (var i = 0; i < thumbs.length; i++) {
+    if ((thumbs[i].width || 0) >= (best.width || 0)) best = thumbs[i];
+  }
+  return fixUrl(best && best.url);
 }
 
 function parseList(r) {
@@ -358,18 +389,25 @@ function toContentItem(x) {
       : x.type === 'browse'
         ? 'ytm:b:' + x.id
         : 'ytm:' + x.id;
+  var poster = fixUrl(x.poster);
+  var title = (x.title || '').toString().trim() || x.id;
+  var artist = (x.artist || '').toString().trim();
   return {
     id: id,
-    title: x.title || x.id,
+    title: title,
     type: 'movie',
-    poster: x.poster || null,
-    backdrop: x.poster || null,
-    overview: x.artist || '',
+    poster: poster,
+    backdrop: poster,
+    overview: artist,
+    year: null,
+    rating: null,
     extra: {
       source: 'ytmusic',
       ytmType: x.type,
       ytmId: x.id,
-      artist: x.artist || '',
+      artist: artist,
+      media: 'audio',
+      audioOnly: true,
     },
   };
 }
@@ -387,43 +425,73 @@ function shelfTitle(shelf) {
 
 // ─── API pública Nuvio ───────────────────────────────────────────────────────
 
-async function getHome() {
+async function loadBrowseRows(browseId, prefix, maxRows) {
   var rows = [];
   try {
-    var data = await yt('browse', { browseId: 'FEmusic_home' });
+    var data = await yt('browse', { browseId: browseId });
     var carousels = findAll(data, 'musicCarouselShelfRenderer');
-    for (var i = 0; i < carousels.length && rows.length < 12; i++) {
+    if (!carousels.length) {
+      // a veces vienen como musicShelfRenderer
+      carousels = findAll(data, 'musicShelfRenderer');
+    }
+    for (var i = 0; i < carousels.length && rows.length < maxRows; i++) {
       var shelf = carousels[i];
       var items = collectItems(shelf)
-        .slice(0, 24)
+        .slice(0, 30)
         .map(toContentItem)
         .filter(Boolean);
       if (!items.length) continue;
       rows.push({
-        id: 'ytm_row_' + i,
+        id: prefix + '_' + i,
         type: 'row',
-        title: shelfTitle(shelf),
+        title: shelfTitle(shelf) || 'Música',
         imageStyle: 'poster',
         items: items,
       });
     }
-  } catch (e) {
-    // fallback charts
-  }
-  if (!rows.length) {
-    try {
-      var charts = await yt('browse', { browseId: 'FEmusic_charts' });
-      var items2 = collectItems(charts).slice(0, 30).map(toContentItem).filter(Boolean);
-      if (items2.length) {
+    // Si no hay carruseles, meter todo en una fila
+    if (!rows.length) {
+      var all = collectItems(data).slice(0, 40).map(toContentItem).filter(Boolean);
+      if (all.length) {
         rows.push({
-          id: 'ytm_charts',
+          id: prefix + '_all',
           type: 'row',
-          title: 'Tendencias',
+          title: prefix === 'charts' ? 'Tendencias' : 'Destacados',
           imageStyle: 'poster',
-          items: items2,
+          items: all,
         });
       }
-    } catch (e2) {}
+    }
+  } catch (e) {}
+  return rows;
+}
+
+async function getHome() {
+  var rows = [];
+  // Varias secciones en paralelo para más contenido
+  var parts = await Promise.all([
+    loadBrowseRows('FEmusic_home', 'home', 10),
+    loadBrowseRows('FEmusic_charts', 'charts', 4),
+    loadBrowseRows('FEmusic_new_releases', 'new', 4),
+    loadBrowseRows('FEmusic_moods_and_genres', 'moods', 4),
+  ]);
+  for (var p = 0; p < parts.length; p++) {
+    for (var j = 0; j < parts[p].length; j++) {
+      rows.push(parts[p][j]);
+      if (rows.length >= 16) break;
+    }
+    if (rows.length >= 16) break;
+  }
+  // Hero con el primer ítem si hay
+  if (rows.length && rows[0].items && rows[0].items[0]) {
+    var first = rows[0].items[0];
+    rows.unshift({
+      id: 'hero',
+      type: 'hero',
+      title: first.title || 'YouTube Music',
+      imageStyle: 'backdrop',
+      items: rows[0].items.slice(0, 8),
+    });
   }
   return { rows: rows };
 }
@@ -446,48 +514,127 @@ async function search(query) {
   }
 }
 
-async function getMeta(id) {
+function extractVideoId(id) {
   id = String(id || '').trim();
-  var m = /^ytm:(t|b):(.+)$/.exec(id) || /^ytm:(.+)$/.exec(id);
-  var kind = 't';
-  var vid = id;
-  if (m) {
-    if (m.length === 3) {
-      kind = m[1];
-      vid = m[2];
-    } else {
-      vid = m[1];
-    }
-  }
-  if (kind === 'b' || /^MP/.test(vid) || /^VL/.test(vid)) {
+  var m = /^ytm:t:(.+)$/.exec(id);
+  if (m) return { kind: 't', id: m[1] };
+  m = /^ytm:b:(.+)$/.exec(id);
+  if (m) return { kind: 'b', id: m[1] };
+  m = /^ytm:(.+)$/.exec(id);
+  if (m) return { kind: 't', id: m[1] };
+  m = /([A-Za-z0-9_-]{11})/.exec(id);
+  if (m) return { kind: 't', id: m[1] };
+  return { kind: 't', id: id };
+}
+
+async function getMeta(id) {
+  var parsed = extractVideoId(id);
+  var kind = parsed.kind;
+  var vid = parsed.id;
+  var fullId = id.indexOf('ytm:') === 0 ? id : kind === 'b' ? 'ytm:b:' + vid : 'ytm:t:' + vid;
+
+  if (kind === 'b' || /^MP/.test(vid) || /^VL/.test(vid) || /^OLAK5/.test(vid)) {
     try {
-      var data = await yt('browse', { browseId: vid.replace(/^VL/, '') });
+      var browseId = vid.replace(/^VL/, '');
+      var data = await yt('browse', { browseId: browseId });
       var items = collectItems(data).slice(0, 80).map(toContentItem).filter(Boolean);
-      var title = vid;
+      var title = browseId;
+      var thumb = null;
+      var sub = '';
       var hdr =
         findAll(data, 'musicResponsiveHeaderRenderer')[0] ||
-        findAll(data, 'musicDetailHeaderRenderer')[0];
-      if (hdr) title = textOf(hdr.title) || title;
+        findAll(data, 'musicDetailHeaderRenderer')[0] ||
+        findAll(data, 'musicImmersiveHeaderRenderer')[0];
+      if (hdr) {
+        title = textOf(hdr.title) || title;
+        sub = textOf(hdr.subtitle) || textOf(hdr.straplineTextOne) || '';
+        thumb = thumbOf(hdr);
+      }
       return {
-        id: id,
+        id: fullId,
         title: title,
         type: 'movie',
-        overview: 'Lista / álbum YouTube Music',
-        extra: { source: 'ytmusic', tracks: items },
+        poster: thumb,
+        backdrop: thumb,
+        overview: sub || (items.length ? items.length + ' pistas' : 'Lista YouTube Music'),
+        extra: {
+          source: 'ytmusic',
+          ytmType: 'browse',
+          ytmId: browseId,
+          tracks: items,
+          audioOnly: true,
+        },
         related: items,
       };
     } catch (e) {
-      return { id: id, title: vid, type: 'movie', overview: String(e.message || e) };
+      return {
+        id: fullId,
+        title: titleFromId(vid),
+        type: 'movie',
+        overview: String(e.message || e),
+      };
     }
   }
-  // track
+
+  // Pista: pedir /player para título, artista y portada reales
+  var title = vid;
+  var artist = '';
+  var poster = null;
+  try {
+    var pdata = await playerFor(vid, CLIENTS[0]);
+    var vd = (pdata && pdata.videoDetails) || {};
+    if (vd.title) title = vd.title;
+    if (vd.author) artist = vd.author;
+    var ths = (vd.thumbnail && vd.thumbnail.thumbnails) || [];
+    if (ths.length) {
+      poster = fixUrl(ths[ths.length - 1].url);
+    }
+    // microformat a veces trae más
+    var mf =
+      pdata &&
+      pdata.microformat &&
+      pdata.microformat.microformatDataRenderer;
+    if (mf) {
+      if (!title && mf.title) title = mf.title;
+      if (!poster && mf.thumbnail && mf.thumbnail.thumbnails) {
+        poster = fixUrl(mf.thumbnail.thumbnails.slice(-1)[0].url);
+      }
+    }
+  } catch (e) {
+    try {
+      // fallback: buscar por id
+      var sdata = await yt('search', { query: vid, params: SEARCH_SONGS });
+      var hit = collectItems(sdata).filter(function (x) {
+        return x.id === vid;
+      })[0];
+      if (hit) {
+        title = hit.title || title;
+        artist = hit.artist || artist;
+        poster = hit.poster || poster;
+      }
+    } catch (e2) {}
+  }
+
   return {
-    id: id.indexOf('ytm:') === 0 ? id : 'ytm:t:' + vid,
-    title: vid,
+    id: fullId,
+    title: title,
     type: 'movie',
-    overview: 'Canción de YouTube Music',
-    extra: { source: 'ytmusic', ytmType: 'track', ytmId: vid },
+    poster: poster,
+    backdrop: poster,
+    overview: artist || 'Canción de YouTube Music',
+    extra: {
+      source: 'ytmusic',
+      ytmType: 'track',
+      ytmId: vid,
+      artist: artist,
+      audioOnly: true,
+      media: 'audio',
+    },
   };
+}
+
+function titleFromId(vid) {
+  return String(vid || 'YouTube Music');
 }
 
 function orderFormats(formats, pref) {
@@ -546,33 +693,39 @@ async function playerFor(videoId, clientDef) {
 }
 
 async function getStreams(id) {
-  id = String(id || '').trim();
-  var vid = id;
-  var m = /^ytm:t:(.+)$/.exec(id) || /^ytm:(.+)$/.exec(id);
-  if (m) vid = m[1];
-  // bare video id
-  if (!/^[A-Za-z0-9_-]{11}$/.test(vid)) {
-    var m2 = /([A-Za-z0-9_-]{11})/.exec(vid);
-    if (m2) vid = m2[1];
+  // Acepta id string o primer arg de getStreams(id, type, season, episode)
+  if (id && typeof id === 'object') {
+    id = id.id || id.contentId || id.url || '';
   }
+  id = String(id || '').trim();
+  var vid = extractVideoId(id).id;
   if (!/^[A-Za-z0-9_-]{11}$/.test(vid)) {
-    return { streams: [] };
+    return { streams: [], error: 'id de pista no válido: ' + id };
   }
 
   var pref = (cfg().quality || 'aac').toString().toLowerCase();
   var streams = [];
   var lastErr = null;
+  var playability = '';
 
   for (var i = 0; i < CLIENTS.length; i++) {
     var cl = CLIENTS[i];
     try {
       var data = await playerFor(vid, cl);
+      var status =
+        data &&
+        data.playabilityStatus &&
+        data.playabilityStatus.status;
+      if (status && status !== 'OK') {
+        playability = status + ' ' + ((data.playabilityStatus.reason) || '');
+        lastErr = new Error(playability);
+        continue;
+      }
       var sd = data.streamingData || {};
-      // HLS
       if (cl.hls && sd.hlsManifestUrl) {
         streams.push({
           url: sd.hlsManifestUrl,
-          name: 'YouTube Music · HLS',
+          name: 'YT Music · HLS',
           quality: 'Auto',
           language: 'Audio',
           provider: 'ytmusic',
@@ -584,15 +737,15 @@ async function getStreams(id) {
             Origin: 'https://www.youtube.com',
           },
         });
-        break;
       }
       var formats = (sd.adaptiveFormats || []).concat(sd.formats || []);
       var ordered = orderFormats(formats, pref);
-      for (var j = 0; j < ordered.length && j < 4; j++) {
+      for (var j = 0; j < ordered.length && j < 5; j++) {
         var f = ordered[j];
+        if (!f.url) continue; // sin url firmada no sirve
         streams.push({
           url: f.url,
-          name: 'YouTube Music · ' + describeFmt(f),
+          name: 'YT Music · ' + describeFmt(f),
           quality: Math.round((f.bitrate || 0) / 1000) + 'k',
           language: 'Audio',
           provider: 'ytmusic',
@@ -602,7 +755,6 @@ async function getStreams(id) {
             'User-Agent': cl.ua,
             Referer: 'https://www.youtube.com/',
             Origin: 'https://www.youtube.com',
-            Range: 'bytes=0-',
           },
         });
       }
@@ -612,10 +764,12 @@ async function getStreams(id) {
     }
   }
 
-  if (!streams.length && lastErr) {
+  if (!streams.length) {
     return {
       streams: [],
-      error: String(lastErr.message || lastErr),
+      error: String(
+        (lastErr && lastErr.message) || playability || 'Sin streams de audio'
+      ),
     };
   }
   return { streams: streams };
@@ -630,9 +784,10 @@ async function getNews() {
         return {
           title: x.title || 'Track',
           message: x.artist || 'YouTube Music',
-          poster: x.poster,
-          banner: x.poster,
-          id: 'ytm:t:' + x.id,
+          poster: fixUrl(x.poster),
+          banner: fixUrl(x.poster),
+          image: fixUrl(x.poster),
+          id: x.type === 'track' ? 'ytm:t:' + x.id : 'ytm:b:' + x.id,
           imageStyle: 'banner',
         };
       });
