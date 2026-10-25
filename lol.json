@@ -1,0 +1,57 @@
+{
+  "id": "ytmusic",
+  "name": "YouTube Music",
+  "version": "0.5.2",
+  "apiVersion": 6,
+  "browser": false,
+  "entry": "index.js",
+  "section": { "label": "YT Music" },
+  "icon": "icon.png",
+  "homepage": "https://github.com/JuanDEVYT/YTMusic_plugin",
+  "author": "JuanDEVYT (port)",
+  "description": "Música de YouTube Music: busca canciones, álbumes y listas; home con tendencias; streams de audio. Cookies opcionales para biblioteca.",
+  "color": "#FF0050",
+  "theme": {
+    "accent": "#FF0050",
+    "onAccent": "#000000",
+    "background": "#0A0A0A",
+    "surface": "#1C1C1C",
+    "highlight": "#F1F1F1"
+  },
+  "capabilities": ["home", "search", "meta", "streams", "catalogs"],
+  "newsImageStyle": "banner",
+  "config": [
+    {
+      "key": "cookieA",
+      "label": "Cookies (parte 1)",
+      "type": "text",
+      "default": "",
+      "placeholder": "Primeros ~500 caracteres de Cookie"
+    },
+    {
+      "key": "cookieB",
+      "label": "Cookies (parte 2)",
+      "type": "text",
+      "default": ""
+    },
+    {
+      "key": "cookieC",
+      "label": "Cookies (parte 3)",
+      "type": "text",
+      "default": ""
+    },
+    {
+      "key": "cookieD",
+      "label": "Cookies (parte 4)",
+      "type": "text",
+      "default": ""
+    },
+    {
+      "key": "quality",
+      "label": "Formato de audio",
+      "type": "select",
+      "default": "aac",
+      "options": ["aac", "opus"]
+    }
+  ]
+}
