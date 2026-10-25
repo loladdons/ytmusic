@@ -577,6 +577,7 @@ async function getStreams(id) {
           language: 'Audio',
           provider: 'ytmusic',
           isHls: true,
+          audioOnly: true,
           headers: {
             'User-Agent': cl.ua,
             Referer: 'https://www.youtube.com/',
@@ -596,6 +597,7 @@ async function getStreams(id) {
           language: 'Audio',
           provider: 'ytmusic',
           isHls: false,
+          audioOnly: true,
           headers: {
             'User-Agent': cl.ua,
             Referer: 'https://www.youtube.com/',
