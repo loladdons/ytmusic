@@ -2,46 +2,24 @@
   "apiVersion": 6,
   "maxApiVersion": 6,
   "capabilities": {
-    "names": ["home", "search", "meta", "streams", "catalogs"],
+    "names": ["home", "search", "discover", "meta", "streams", "catalogs"],
     "required": ["streams"],
     "atLeastOneOf": ["search", "home"]
   },
   "manifest": {
     "idPattern": "^[a-z0-9][a-z0-9-]{1,39}$",
-    "nameMaxChars": 40,
-    "descriptionMaxChars": 300,
-    "entryMaxBytes": 1048576,
-    "iconMaxBytes": 131072,
-    "theme": {
-      "tokens": ["accent", "onAccent", "background", "surface", "highlight"],
-      "defaults": {
-        "accent": "#FF0050",
-        "onAccent": "#000000",
-        "background": "#0A0A0A",
-        "surface": "#1C1C1C",
-        "highlight": "#F1F1F1"
-      }
-    },
-    "section": { "labelMaxChars": 20 },
-    "categories": { "values": ["music"] }
-  },
-  "output": {
-    "maxSearchItems": 80,
-    "maxHomeRows": 20,
-    "maxRowItems": 40,
-    "itemKinds": ["movie", "series"]
+    "categories": { "values": ["movies", "series"] }
   },
   "timeoutsMs": {
     "search": 15000,
     "home": 20000,
-    "resolve": 25000
+    "resolve": 30000
   },
   "fetch": {
     "methods": ["GET", "POST", "HEAD"],
-    "defaultTimeoutMs": 15000,
-    "maxTimeoutMs": 30000
+    "defaultTimeoutMs": 15000
   },
   "errors": {
-    "codes": ["auth_required", "not_found", "unavailable", "rate_limited"]
+    "codes": ["not_found", "unavailable", "auth_required"]
   }
 }

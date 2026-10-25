@@ -1,68 +1,60 @@
 {
-  "id": "ytmusic",
-  "name": "YouTube Music",
-  "version": "0.5.3",
+  "id": "cinehax-plus",
+  "name": "CineHax+",
+  "version": "0.3.6",
   "apiVersion": 6,
   "browser": false,
   "entry": "index.js",
   "section": {
-    "label": "YT Music"
+    "label": "CineHax+"
   },
   "icon": "icon.png",
-  "homepage": "https://github.com/JuanDEVYT/YTMusic_plugin",
-  "author": "JuanDEVYT (port)",
-  "description": "Música de YouTube Music: home con varias filas, búsqueda, meta con título real y streams de audio.",
-  "color": "#FF0050",
+  "homepage": "https://cinehaxplus.com",
+  "author": "JuandreXter (port)",
+  "description": "Películas y series en español latino de CineHax+. Home, búsqueda, meta, episodios y streams.",
+  "color": "#2563EB",
   "theme": {
-    "accent": "#FF0050",
-    "onAccent": "#000000",
-    "background": "#0A0A0A",
-    "surface": "#1C1C1C",
-    "highlight": "#F1F1F1"
+    "accent": "#2563EB",
+    "onAccent": "#FFFFFF",
+    "background": "#0B0C14",
+    "surface": "#1B1F2E",
+    "highlight": "#6EE7A8"
   },
   "capabilities": [
     "home",
     "search",
+    "discover",
     "meta",
     "streams",
     "catalogs"
   ],
-  "newsImageStyle": "banner",
+  "tabs": [
+    "home",
+    "discover",
+    "search",
+    "library",
+    "settings"
+  ],
+  "newsImageStyle": "poster",
   "config": [
     {
-      "key": "cookieA",
-      "label": "Cookies (parte 1)",
-      "type": "text",
-      "default": "",
-      "placeholder": "Primeros ~500 caracteres de Cookie"
-    },
-    {
-      "key": "cookieB",
-      "label": "Cookies (parte 2)",
-      "type": "text",
-      "default": ""
-    },
-    {
-      "key": "cookieC",
-      "label": "Cookies (parte 3)",
-      "type": "text",
-      "default": ""
-    },
-    {
-      "key": "cookieD",
-      "label": "Cookies (parte 4)",
-      "type": "text",
-      "default": ""
-    },
-    {
-      "key": "quality",
-      "label": "Formato de audio",
+      "key": "pestanas",
+      "label": "Contenido",
       "type": "select",
-      "default": "aac",
+      "default": "ambas",
       "options": [
-        "aac",
-        "opus"
-      ]
+        "ambas",
+        "peliculas",
+        "series"
+      ],
+      "description": "Qué tipo de títulos mostrar en home/búsqueda"
+    },
+    {
+      "key": "base_url",
+      "label": "URL base (opcional)",
+      "type": "text",
+      "default": "https://cinehaxplus.com",
+      "placeholder": "https://cinehaxplus.com"
     }
   ]
 }
